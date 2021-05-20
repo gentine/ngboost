@@ -76,6 +76,7 @@ class NGBoost:
         self.tol = tol
         self.random_state = check_random_state(random_state)
         self.best_val_loss_itr = None
+        self.params   = []
         if hasattr(self.Dist, "multi_output"):
             self.multi_output = self.Dist.multi_output
         else:
@@ -109,6 +110,9 @@ class NGBoost:
             Y
         )  # would be best to put sample weights here too
 
+    def fit_init_params_to_model(self, model):
+        self.init_params = model.params # intial model parameter initialized to other model parameters
+    
     def pred_param(self, X, max_iter=None):
         m, n = X.shape
         params = np.ones((m, self.Manifold.n_params)) * self.init_params
@@ -196,6 +200,7 @@ class NGBoost:
         train_loss_monitor=None,
         val_loss_monitor=None,
         early_stopping_rounds=None,
+        base_model=None,
     ):
         """
         Fits an NGBoost model to the data
@@ -222,6 +227,9 @@ class NGBoost:
                                     constructor
             early_stopping_rounds : the number of consecutive boosting iterations during which
                                     the loss has to increase before the algorithm stops early.
+            base_model            : initial model over which iteration will be performed if None 
+                                    - random initialization of parameters                      
+                                    
 
         Output:
             A fit NGBRegressor object
@@ -235,9 +243,14 @@ class NGBoost:
         self.n_features = X.shape[1]
 
         loss_list = []
-        self.fit_init_params_to_marginal(Y)
+        
 
-        params = self.pred_param(X)
+        if(base_model==None): # if no initial model random initial parameters
+            self.fit_init_params_to_marginal(Y)
+            self.params = self.pred_param(X)
+        else:
+            self.params = base_model.params
+            
         if X_val is not None and Y_val is not None:
             X_val, Y_val = check_X_y(
                 X_val, Y_val, y_numeric=True, multi_output=self.multi_output
@@ -258,7 +271,7 @@ class NGBoost:
 
         for itr in range(self.n_estimators):
             _, col_idx, X_batch, Y_batch, weight_batch, P_batch = self.sample(
-                X, Y, sample_weight, params
+                X, Y, sample_weight, self.params
             )
             self.col_idxs.append(col_idx)
 
@@ -272,7 +285,7 @@ class NGBoost:
             scale = self.line_search(proj_grad, P_batch, Y_batch, weight_batch)
 
             # pdb.set_trace()
-            params -= (
+            self.params -= (
                 self.learning_rate
                 * scale
                 * np.array([m.predict(X[:, col_idx]) for m in self.base_models[-1]]).T
