@@ -111,7 +111,7 @@ class NGBoost:
             Y
         )  # would be best to put sample weights here too
 
-    def pred_param(self, X, max_iter=None, iterative = False):
+    def pred_param(self, X, max_iter=None):
         m, n = X.shape
         
         params = np.ones((m, self.Manifold.n_params)) * self.init_params # initial distribution homoskeodatic
@@ -226,7 +226,6 @@ class NGBoost:
                                     constructor
             early_stopping_rounds : the number of consecutive boosting iterations during which
                                     the loss has to increase before the algorithm stops early.
-            iterative             : iterate parameters from previous boosted regression                    
                                     
 
         Output:
@@ -245,7 +244,10 @@ class NGBoost:
         #TODO PIERRE - DEFINE FIRST AS VALIDATION AND OTHER ONE AS TRAINING
 
         self.fit_init_params_to_marginal(Y) # initial parameters to marginal
-        params = self.pred_param(X)
+        if not iterative: 
+            params = self.pred_param(X) 
+        else:
+            _,params = self.pred_dist(X) # if iterative learning - use predicted parameters from previous iteration 
         
                  
         if X_val is not None and Y_val is not None:
@@ -322,7 +324,6 @@ class NGBoost:
                 grad_norm = np.linalg.norm(grads, axis=1).mean() * scale
                 print(
                     f"[iter {itr}] loss={loss:.4f} val_loss={val_loss:.4f} scale={scale:.4f} "
-                    f"norm={grad_norm:.4f}"
                 )
 
             if np.linalg.norm(proj_grad, axis=1).mean() < self.tol:
@@ -335,7 +336,7 @@ class NGBoost:
         self.evals_result["train"] = {metric: loss_list}
         if X_val is not None and Y_val is not None:
             self.evals_result["val"] = {metric: val_loss_list}
-
+        
         return self
 
     def score(self, X, Y):  # for sklearn
@@ -359,11 +360,12 @@ class NGBoost:
         if (
             max_iter is not None
         ):  # get prediction at a particular iteration if asked for
-            dist = self.staged_pred_dist(X, max_iter=max_iter)[-1]
+            dist   = self.staged_pred_dist(X, max_iter=max_iter)[-1]
+            params = []
         else:
             params = np.asarray(self.pred_param(X, max_iter))
-            dist = self.Dist(params.T)
-        return dist
+            dist   = self.Dist(params.T)
+        return dist,params
 
     def staged_pred_dist(self, X, max_iter=None):
         """
@@ -406,8 +408,8 @@ class NGBoost:
         """
 
         X = check_array(X)
-
-        return self.pred_dist(X, max_iter=max_iter).predict()
+        dist,_ = self.pred_dist(X, max_iter=max_iter)
+        return dist.predict()
 
     def staged_predict(self, X, max_iter=None):
         """
