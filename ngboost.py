@@ -14,6 +14,7 @@ from ngboost.manifold import manifold
 from ngboost.scores import LogScore
 
 
+
 class NGBoost:
     """
     Constructor for all NGBoost models.
@@ -199,7 +200,8 @@ class NGBoost:
         train_loss_monitor=None,
         val_loss_monitor=None,
         early_stopping_rounds=None,
-        iterative = False
+        iterative = False,
+        learning_rate_iterative = 0.0
     ):
         """
         Fits an NGBoost model to the data
@@ -244,12 +246,9 @@ class NGBoost:
         #TODO PIERRE - DEFINE FIRST AS VALIDATION AND OTHER ONE AS TRAINING
 
         self.fit_init_params_to_marginal(Y) # initial parameters to marginal
-        if not iterative: 
-            params = self.pred_param(X) 
-        else:
-            _,params = self.pred_dist(X) # if iterative learning - use predicted parameters from previous iteration 
+        params = self.pred_param(X) 
         
-                 
+            
         if X_val is not None and Y_val is not None:
             X_val, Y_val = check_X_y(
                 X_val, Y_val, y_numeric=True, multi_output=self.multi_output
@@ -336,7 +335,6 @@ class NGBoost:
         self.evals_result["train"] = {metric: loss_list}
         if X_val is not None and Y_val is not None:
             self.evals_result["val"] = {metric: val_loss_list}
-        
         return self
 
     def score(self, X, Y):  # for sklearn
@@ -473,3 +471,5 @@ class NGBoost:
         total_feature_importance = np.zeros(self.n_features)
         total_feature_importance[self.col_idxs[tree_index]] = tree_feature_importance
         return total_feature_importance
+
+
